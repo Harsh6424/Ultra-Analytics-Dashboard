@@ -55,13 +55,27 @@ const App: React.FC = () => {
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
           errorMessage = `
               <h3 class="text-xl font-semibold text-brand-danger">Request Failed</h3>
-              <div class="max-w-2xl mx-auto mt-4 text-slate-300">
-                <strong class="text-base text-white">This is a common one-time setup issue.</strong>
-                <p class="mt-2">This error usually happens because the <strong class="text-amber-400">Google Analytics Data API</strong> is not enabled in your Google Cloud project. This is required to fetch report data.</p>
-                <p class="mt-3 mb-3">Please click the link below to enable it. After enabling, you may need to refresh this page and sign in again.</p>
-                <div class="text-center inline-block mt-1">
-                    <a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" rel="noopener noreferrer" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-lg inline-block">Enable the Google Analytics Data API</a>
+              <div class="max-w-2xl mx-auto mt-4 text-slate-300 text-left">
+                <p class="mb-4 text-center">This "Failed to fetch" error usually points to one of two common setup issues.</p>
+                
+                <div class="p-4 border border-slate-600 rounded-lg">
+                  <strong class="text-base text-white">1. Google Analytics Data API is Not Enabled</strong>
+                  <p class="mt-1 text-sm text-slate-400">This API is required to fetch report data. Please ensure it's enabled in your Google Cloud project.</p>
+                  <div class="text-left inline-block mt-2">
+                    <a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">Check/Enable the Data API</a>
+                  </div>
                 </div>
+
+                <div class="mt-4 p-4 border border-slate-600 rounded-lg">
+                  <strong class="text-base text-white">2. Insufficient Permissions in Google Analytics</strong>
+                  <p class="mt-1 text-sm text-slate-400">If the API is already enabled, this error means the signed-in user does not have at least <strong class="text-amber-400">"Viewer"</strong> permissions for the selected GA4 property (<strong class="text-amber-400">${filters.ga4Property}</strong>).</p>
+                  <p class="mt-2 text-sm text-slate-400">You may have permission to <em>see</em> the property in the list, but not to <em>read its data</em>.</p>
+                  <p class="mt-2 text-sm text-slate-400">
+                    <strong>Solution:</strong> Ask a Google Analytics administrator to grant your account the "Viewer" role on that specific property.
+                  </p>
+                </div>
+                
+                <p class="text-xs text-slate-500 mt-4 text-center">After making changes, you may need to refresh this page and sign in again.</p>
               </div>
           `;
       } else {
