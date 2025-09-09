@@ -1,4 +1,3 @@
-
 export type DateRange = 'last-28d' | 'last-30d' | 'last-3m' | 'last-6m' | 'custom';
 export type TopN = 10 | 25 | 50;
 export type Device = 'Desktop' | 'Mobile' | 'Tablet';
@@ -11,6 +10,11 @@ export interface FilterState {
   authorAnalysis: boolean;
   ga4Property: string;
   gscSite: string;
+}
+
+export interface Ga4Property {
+  displayName: string;
+  property: string; // e.g., "properties/123456789"
 }
 
 export interface Kpi {

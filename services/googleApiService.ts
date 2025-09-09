@@ -1,4 +1,4 @@
-import type { AppData, FilterState, GscDataRow, AuthorData, TimeseriesData } from '../types';
+import type { AppData, FilterState, GscDataRow, AuthorData, TimeseriesData, Ga4Property } from '../types';
 import { calculateGrowth, getGrowthType, shortFormatNumber, extractAuthorFromUrl, formatPercentage, formatDecimal, formatNumber } from '../utils';
 
 // --- HELPER FUNCTIONS ---
@@ -33,6 +33,47 @@ const getDateRange = (dateRange: FilterState['dateRange']): { startDate: string,
 
 
 // --- API CALLS & DATA TRANSFORMATION ---
+
+/**
+ * Fetches a list of GA4 properties the user has access to.
+ */
+export async function fetchGa4Properties(accessToken: string): Promise<Ga4Property[]> {
+    const GA4_ADMIN_API_ENDPOINT = `https://analyticsadmin.googleapis.com/v1beta/accountSummaries`;
+    const response = await fetch(GA4_ADMIN_API_ENDPOINT, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`GA4 Admin API Error: ${error.error.message}`);
+    }
+    const result = await response.json();
+    const properties: Ga4Property[] = [];
+    if (result.accountSummaries) {
+        for (const account of result.accountSummaries) {
+            if (account.propertySummaries) {
+                properties.push(...account.propertySummaries);
+            }
+        }
+    }
+    return properties.sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+/**
+ * Fetches a list of GSC sites the user has access to.
+ */
+export async function fetchGscSites(accessToken: string): Promise<string[]> {
+    const GSC_API_ENDPOINT = `https://www.googleapis.com/webmasters/v3/sites`;
+    const response = await fetch(GSC_API_ENDPOINT, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`GSC Sites API Error: ${error.error.message}`);
+    }
+    const result = await response.json();
+    return result.siteEntry?.map((site: any) => site.siteUrl).sort() || [];
+}
+
 
 /**
  * Fetches data from Google Search Console API.
