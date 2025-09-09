@@ -29,7 +29,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   if (propertiesError) {
       return (
         <div className="p-4 bg-red-900/50 text-red-300 border border-red-700 rounded-md text-sm text-center mb-6">
-            <p className="font-semibold">{propertiesError}</p>
+            <div className="font-semibold" dangerouslySetInnerHTML={{ __html: propertiesError }} />
         </div>
       );
   }

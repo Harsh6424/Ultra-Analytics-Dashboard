@@ -79,7 +79,18 @@ const App: React.FC = () => {
 
     } catch(err: any) {
         console.error("Failed to load user properties:", err);
-        setPropertiesError("Could not load your GA4/GSC properties. Please ensure you've granted permissions and refresh the page.");
+        const detailedError = `
+            <strong class="text-base">Could not load your GA4/GSC properties.</strong>
+            <p class="mt-2">This is usually because the necessary APIs are not enabled in your Google Cloud project.</p>
+            <p class="mt-2 mb-2">Please click the links below to enable them for your project, then refresh this page:</p>
+            <div class="text-left inline-block">
+                <a href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold">1. Enable the Google Analytics Admin API</a>
+                <br />
+                <a href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold">2. Enable the Google Search Console API</a>
+            </div>
+            <p class="text-xs text-slate-400 mt-3">This is a one-time setup step for your Google Cloud project.</p>
+        `;
+        setPropertiesError(detailedError);
     } finally {
         setIsPropertiesLoading(false);
     }
