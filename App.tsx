@@ -36,7 +36,7 @@ const App: React.FC = () => {
     setData(null);
 
     if (!filters.ga4Property || !filters.gscSite) {
-        setError('Please select a GA4 Property and a GSC Site from the dropdowns.');
+        setError('<h3 class="text-xl font-semibold text-brand-danger">Missing Selection</h3><p class="mt-2 text-slate-400">Please select a GA4 Property and a GSC Site from the dropdowns.</p>');
         setIsLoading(false);
         return;
     }
@@ -49,7 +49,30 @@ const App: React.FC = () => {
       setHiddenInsights(insights);
     } catch (error: any) {
       console.error("Error fetching data or insights:", error);
-      setError(error.message || 'An unknown error occurred while fetching data.');
+      
+      let errorMessage: string;
+  
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+          errorMessage = `
+              <h3 class="text-xl font-semibold text-brand-danger">Request Failed</h3>
+              <div class="max-w-2xl mx-auto mt-4 text-slate-300">
+                <strong class="text-base text-white">This is a common one-time setup issue.</strong>
+                <p class="mt-2">This error usually happens because the <strong class="text-amber-400">Google Analytics Data API</strong> is not enabled in your Google Cloud project. This is required to fetch report data.</p>
+                <p class="mt-3 mb-3">Please click the link below to enable it. After enabling, you may need to refresh this page and sign in again.</p>
+                <div class="text-center inline-block mt-1">
+                    <a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" rel="noopener noreferrer" class="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-lg inline-block">Enable the Google Analytics Data API</a>
+                </div>
+              </div>
+          `;
+      } else {
+          errorMessage = `
+            <h3 class="text-xl font-semibold text-brand-danger">An Error Occurred</h3>
+            <p class="mt-2 text-slate-400">${error.message || 'An unknown error occurred while fetching data.'}</p>
+            <p class="mt-2 text-xs text-slate-500">Check the browser console for details. This could be due to incorrect GA4/GSC properties, missing API permissions, or an expired session.</p>
+          `;
+      }
+
+      setError(errorMessage);
       setData(null);
       setHiddenInsights('Failed to generate insights. Please try again.');
     } finally {
@@ -129,11 +152,7 @@ const App: React.FC = () => {
             <LoadingSpinner />
           </div>
         ) : error ? (
-            <div className="text-center py-16 bg-slate-800 rounded-lg">
-                <h3 className="text-xl font-semibold text-brand-danger">Request Failed</h3>
-                <p className="mt-2 text-slate-400">{error}</p>
-                <p className="mt-2 text-xs text-slate-500">Check the browser console for details. This could be due to incorrect GA4/GSC properties, missing API permissions, or an expired session.</p>
-            </div>
+            <div className="text-center py-16 bg-slate-800 rounded-lg" dangerouslySetInnerHTML={{ __html: error }} />
         ) : data ? (
           <Dashboard data={data} hiddenInsights={hiddenInsights} siteUrl={filters.gscSite} dateRangeLabel={filters.dateRange}/>
         ) : !propertiesError ? ( // Only show this if there isn't a more important property loading error
