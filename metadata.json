@@ -1,0 +1,5 @@
+{
+  "name": "GA4 & GSC SEO Analytics Dashboard",
+  "description": "An advanced dashboard that connects to Google Analytics 4 (GA4) and Google Search Console (GSC) to pull performance data, compute growth insights, and generate comprehensive reports. It features diagnostic tables, extended insights, author-level analysis, and AI-powered 'Hidden Insights' to uncover actionable opportunities.",
+  "requestFramePermissions": []
+}
