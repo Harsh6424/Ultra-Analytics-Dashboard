@@ -1,3 +1,4 @@
+
 import type { AppData, FilterState, GscDataRow, AuthorData, TimeseriesData, Ga4Property, UserInfo } from '../types';
 import { calculateGrowth, getGrowthType, shortFormatNumber, extractAuthorFromUrl, formatPercentage, formatDecimal, formatNumber } from '../utils';
 
@@ -60,7 +61,7 @@ export async function fetchGa4Properties(accessToken: string): Promise<Ga4Proper
     });
     if (!response.ok) {
         const error = await response.json();
-        throw new Error(`GA4 Admin API Error: ${error.error.message}`);
+        throw new Error(`GA4 Admin API Error: ${error.error?.message || 'Failed to list properties.'}`);
     }
     const result = await response.json();
     const properties: Ga4Property[] = [];
@@ -78,13 +79,13 @@ export async function fetchGa4Properties(accessToken: string): Promise<Ga4Proper
  * Fetches a list of GSC sites the user has access to.
  */
 export async function fetchGscSites(accessToken: string): Promise<string[]> {
-    const GSC_API_ENDPOINT = `https://www.googleapis.com/webmasters/v3/sites`;
+    const GSC_API_ENDPOINT = `https://searchconsole.googleapis.com/v1/sites`;
     const response = await fetch(GSC_API_ENDPOINT, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     if (!response.ok) {
         const error = await response.json();
-        throw new Error(`GSC Sites API Error: ${error.error.message}`);
+        throw new Error(`GSC Sites API Error: ${error.error?.message || 'Failed to list sites.'}`);
     }
     const result = await response.json();
     return result.siteEntry?.map((site: any) => site.siteUrl).sort() || [];
@@ -103,7 +104,7 @@ async function fetchGscData(
     searchType: 'web' | 'discover',
     rowLimit: number
 ): Promise<GscDataRow[]> {
-    const GSC_API_ENDPOINT = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`;
+    const GSC_API_ENDPOINT = `https://searchconsole.googleapis.com/v1/searchanalytics/query`;
     
     const response = await fetch(GSC_API_ENDPOINT, {
         method: 'POST',
@@ -112,6 +113,7 @@ async function fetchGscData(
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+            siteUrl,
             startDate,
             endDate,
             dimensions,
@@ -122,7 +124,7 @@ async function fetchGscData(
 
     if (!response.ok) {
         const error = await response.json();
-        throw new Error(`GSC API Error (${dimensions.join(', ')}): ${error.error.message}`);
+        throw new Error(`GSC API Error (${dimensions.join(', ')}): ${error.error?.message || 'Request failed.'}`);
     }
 
     const result = await response.json();
@@ -167,7 +169,7 @@ async function fetchGa4Totals(
 
     if (!response.ok) {
         const error = await response.json();
-        throw new Error(`GA4 API Error (Totals): ${error.error.message}`);
+        throw new Error(`GA4 API Error (Totals): ${error.error?.message || 'Request failed.'}`);
     }
     
     const result = await response.json();
