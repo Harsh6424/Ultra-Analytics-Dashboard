@@ -11,7 +11,7 @@ interface AuthProps {
 const GOOGLE_CLIENT_ID = '569678483576-6c86kgrrpu1pav3mqj93u3n51cj9uilf.apps.googleusercontent.com';
 
 type AuthError = {
-    type: 'popup_blocker' | 'config' | 'token' | 'init';
+    type: 'popup_blocker' | 'config' | 'token' | 'init' | 'popup_closed';
 };
 
 export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
@@ -24,7 +24,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
     try {
       const client = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly',
+        scope: 'https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
         callback: (tokenResponse: any) => {
           if (tokenResponse && tokenResponse.access_token) {
             onAuthSuccess(tokenResponse.access_token);
@@ -38,7 +38,9 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
             console.error("Google Auth Error:", error);
             if (error.type === 'popup_failed_to_open') {
                  setError({ type: 'popup_blocker' });
-            } else { // Handles 'popup_closed', 'invalid_request', 'redirect_uri' errors. These are almost always config issues.
+            } else if (error.type === 'popup_closed') {
+                setError({ type: 'popup_closed' });
+            } else { // Handles 'invalid_request', 'redirect_uri', etc.
                  setError({ type: 'config' });
             }
             setIsAuthenticating(false);
@@ -61,6 +63,13 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                   <div className="p-4 bg-yellow-900/50 text-yellow-300 border border-yellow-700 rounded-md text-sm text-left">
                       <p className="font-semibold mb-2">Popup Blocker Detected</p>
                       <p>Your browser has blocked the Google sign-in popup. Please disable your popup blocker for this site and try again.</p>
+                  </div>
+              );
+          case 'popup_closed':
+              return (
+                  <div className="p-4 bg-yellow-900/50 text-yellow-300 border border-yellow-700 rounded-md text-sm text-left">
+                      <p className="font-semibold mb-2">Authentication Canceled</p>
+                      <p>The sign-in window was closed before authentication was complete. Please try again.</p>
                   </div>
               );
           case 'config':
