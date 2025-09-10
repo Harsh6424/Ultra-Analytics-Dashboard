@@ -5,6 +5,36 @@ import { calculateGrowth, getGrowthType, shortFormatNumber, extractAuthorFromUrl
 // --- HELPER FUNCTIONS ---
 
 /**
+ * Parses a failed API response to extract the most descriptive error message.
+ * @param response The raw Response object from a failed fetch call.
+ * @param apiName A friendly name for the API that was called (e.g., "GA4 Admin").
+ * @returns Throws an error with a formatted message.
+ */
+async function handleApiError(response: Response, apiName: string): Promise<never> {
+    let errorMessage = `Request failed.`;
+    try {
+        const errorData = await response.json();
+        // Google APIs have a few common error formats
+        if (errorData.error) {
+            if (typeof errorData.error === 'string') {
+                // Format: { "error": "...", "error_description": "..." }
+                errorMessage = errorData.error_description || errorData.error;
+            } else if (errorData.error.message) {
+                // Format: { "error": { "message": "...", "status": "..." } }
+                errorMessage = errorData.error.message;
+            }
+        } else if (errorData.message) {
+            errorMessage = errorData.message;
+        }
+    } catch (e) {
+        // Response was not JSON or something else went wrong
+        errorMessage = `Request failed with status ${response.status}: ${response.statusText}`;
+    }
+    throw new Error(`${apiName} Error: ${errorMessage}`);
+}
+
+
+/**
  * Converts a date range string (e.g., 'last-28d') into start and end dates.
  */
 const getDateRange = (dateRange: FilterState['dateRange']): { startDate: string, endDate: string } => {
@@ -44,10 +74,9 @@ export async function fetchUserInfo(accessToken: string): Promise<UserInfo> {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`User Info API Error: ${error.error.message || 'Failed to fetch user info.'}`);
+        return handleApiError(response, 'User Info');
     }
-    return await response.json();
+    return response.json();
 }
 
 
@@ -60,8 +89,7 @@ export async function fetchGa4Properties(accessToken: string): Promise<Ga4Proper
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`GA4 Admin API Error: ${error.error?.message || 'Failed to list properties.'}`);
+        return handleApiError(response, 'GA4 Admin');
     }
     const result = await response.json();
     const properties: Ga4Property[] = [];
@@ -84,8 +112,7 @@ export async function fetchGscSites(accessToken: string): Promise<string[]> {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`GSC Sites API Error: ${error.error?.message || 'Failed to list sites.'}`);
+        return handleApiError(response, 'GSC Sites');
     }
     const result = await response.json();
     return result.siteEntry?.map((site: any) => site.siteUrl).sort() || [];
@@ -123,8 +150,7 @@ async function fetchGscData(
     });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`GSC API Error (${dimensions.join(', ')}): ${error.error?.message || 'Request failed.'}`);
+        return handleApiError(response, `GSC (${dimensions.join(', ')})`);
     }
 
     const result = await response.json();
@@ -168,8 +194,7 @@ async function fetchGa4Totals(
     });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`GA4 API Error (Totals): ${error.error?.message || 'Request failed.'}`);
+        return handleApiError(response, 'GA4 Totals');
     }
     
     const result = await response.json();
