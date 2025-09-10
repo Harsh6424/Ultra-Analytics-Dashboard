@@ -129,8 +129,8 @@ const App: React.FC = () => {
     } catch(err: any) {
         console.error("Failed to load user properties:", err);
         const detailedError = `
-            <strong class="text-base text-brand-danger">Authentication Error: Could not load your GA4/GSC properties.</strong>
-            <p class="mt-2">I know this is incredibly frustrating. Let's fix this for good. This error almost always means there's a configuration mismatch in your Google Cloud project. Please follow these steps exactly:</p>
+            <strong class="text-base text-brand-danger">Authentication Error: Could not load user or property data.</strong>
+            <p class="mt-2">I know this is incredibly frustrating. This error almost always means a specific API is not enabled in your Google Cloud project, even if other parts of the app seem to work. Please follow these steps exactly:</p>
 
             <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
                 <strong class="text-base text-white">Step 1: Find Your Correct Google Cloud Project ID</strong>
@@ -144,12 +144,14 @@ const App: React.FC = () => {
 
             <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
                 <strong class="text-base text-white">Step 2: Verify APIs are Enabled (In the Correct Project)</strong>
-                <p class="mt-1 mb-2 text-sm text-slate-400">Once you are certain you are in the correct project, click these links to enable the required APIs. If they are already enabled, leave them as-is.</p>
-                <a href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">1. Enable Google Analytics Admin API</a>
+                <p class="mt-1 mb-2 text-sm text-slate-400">Once you are certain you are in the correct project, click these links to enable the required APIs. It is critical that <strong class="text-amber-400">ALL FOUR</strong> of these are enabled. If they are already enabled, the link will show you their status.</p>
+                <a href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">1. Enable Google Analytics Admin API (for listing properties)</a>
                 <br />
-                <a href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">2. Enable Google Search Console API</a>
+                <a href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">2. Enable Google Search Console API (for listing sites)</a>
                 <br />
-                <a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">3. Enable Google Analytics Data API</a>
+                <a href="https://console.cloud.google.com/apis/library/people.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">3. Enable Google People API (for user info)</a>
+                <br />
+                <a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">4. Enable Google Analytics Data API (for fetching reports)</a>
             </div>
 
             <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
