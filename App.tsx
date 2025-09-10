@@ -55,27 +55,32 @@ const App: React.FC = () => {
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
           errorMessage = `
               <h3 class="text-xl font-semibold text-brand-danger">Request Failed</h3>
-              <div class="max-w-2xl mx-auto mt-4 text-slate-300 text-left">
-                <p class="mb-4 text-center">This "Failed to fetch" error usually points to one of two common setup issues.</p>
+              <div class="max-w-3xl mx-auto mt-4 text-slate-300 text-left">
+                <p class="mb-4 text-center">This "Failed to fetch" error usually points to a configuration issue. Please walk through this checklist:</p>
                 
                 <div class="p-4 border border-slate-600 rounded-lg">
-                  <strong class="text-base text-white">1. Google Analytics Data API is Not Enabled</strong>
-                  <p class="mt-1 text-sm text-slate-400">This API is required to fetch report data. Please ensure it's enabled in your Google Cloud project.</p>
+                    <strong class="text-base text-white">1. Wait a Few Minutes & Sign Out/In</strong>
+                    <p class="mt-1 text-sm text-slate-400">If you just enabled an API, it can take up to 5 minutes for the change to take effect. Please use the "Sign Out" button in the header and sign back in after a short wait to get a fresh token.</p>
+                </div>
+
+                <div class="mt-4 p-4 border border-slate-600 rounded-lg">
+                  <strong class="text-base text-white">2. Check Required APIs & Billing</strong>
+                  <p class="mt-1 text-sm text-slate-400">Ensure the <strong class="text-amber-400">"Google Analytics Data API"</strong> is enabled in the correct Google Cloud project. This is the project that contains your OAuth Client ID.</p>
+                  <p class="mt-2 text-sm text-slate-400">Also, some APIs require <strong class="text-amber-400">Billing</strong> to be enabled on the project, even if you are within the free tier.</p>
                   <div class="text-left inline-block mt-2">
-                    <a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">Check/Enable the Data API</a>
+                    <a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">Enable the Data API</a>
                   </div>
                 </div>
 
                 <div class="mt-4 p-4 border border-slate-600 rounded-lg">
-                  <strong class="text-base text-white">2. Insufficient Permissions in Google Analytics</strong>
-                  <p class="mt-1 text-sm text-slate-400">If the API is already enabled, this error means the signed-in user does not have at least <strong class="text-amber-400">"Viewer"</strong> permissions for the selected GA4 property (<strong class="text-amber-400">${filters.ga4Property}</strong>).</p>
-                  <p class="mt-2 text-sm text-slate-400">You may have permission to <em>see</em> the property in the list, but not to <em>read its data</em>.</p>
-                  <p class="mt-2 text-sm text-slate-400">
+                  <strong class="text-base text-white">3. Verify Google Analytics Permissions</strong>
+                  <p class="mt-1 text-sm text-slate-400">The signed-in user must have at least <strong class="text-amber-400">"Viewer"</strong> permissions for the selected GA4 property (<strong class="text-amber-400">${filters.ga4Property}</strong>).</p>
+                   <p class="mt-2 text-sm text-slate-400">
                     <strong>Solution:</strong> Ask a Google Analytics administrator to grant your account the "Viewer" role on that specific property.
                   </p>
                 </div>
                 
-                <p class="text-xs text-slate-500 mt-4 text-center">After making changes, you may need to refresh this page and sign in again.</p>
+                <p class="text-xs text-slate-500 mt-4 text-center">After making any changes, please use the "Sign Out" button and sign back in to refresh your permissions.</p>
               </div>
           `;
       } else {
@@ -132,6 +137,24 @@ const App: React.FC = () => {
         setIsPropertiesLoading(false);
     }
   }, []);
+
+  const handleSignOut = () => {
+    setAccessToken(null);
+    setData(null);
+    setError(null);
+    setPropertiesError(null);
+    setGa4Properties([]);
+    setGscSites([]);
+    setHiddenInsights('');
+    setFilters({
+        dateRange: 'last-28d',
+        compare: true,
+        topN: 10,
+        authorAnalysis: true,
+        ga4Property: '',
+        gscSite: '',
+    });
+  };
   
   const handleFiltersChange = (newFilters: Partial<FilterState>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
@@ -149,7 +172,7 @@ const App: React.FC = () => {
   
   return (
     <div className="min-h-screen bg-slate-900 font-sans">
-      <Header />
+      <Header onSignOut={handleSignOut} />
       <main className="p-4 sm:p-6 lg:p-8">
         <FilterBar 
             filters={filters} 
