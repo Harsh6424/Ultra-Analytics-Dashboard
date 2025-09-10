@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { FilterBar } from './components/FilterBar';
@@ -129,14 +130,24 @@ const App: React.FC = () => {
         console.error("Failed to load user properties:", err);
         const detailedError = `
             <strong class="text-base">Could not load your GA4/GSC properties.</strong>
-            <p class="mt-2">This is usually because the necessary APIs are not enabled in your Google Cloud project.</p>
-            <p class="mt-2 mb-2">Please click the links below to enable them for your project, then refresh this page:</p>
-            <div class="text-left inline-block">
-                <a href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold">1. Enable the Google Analytics Admin API</a>
+            <p class="mt-2">This is usually because of a mismatch between the APIs enabled in your Google Cloud project and the permissions (scopes) you've granted this app.</p>
+
+            <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
+                <strong class="text-base text-white">Action 1: Enable the Correct APIs</strong>
+                <p class="mt-1 mb-2 text-sm text-slate-400">Please click the links below to ensure the necessary APIs are enabled for your project. This is a one-time setup step.</p>
+                <a href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">1. Enable the Google Analytics Admin API</a>
                 <br />
-                <a href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold">2. Enable the Google Search Console API</a>
+                <a href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">2. Enable the Google Search Console API</a>
             </div>
-            <p class="text-xs text-slate-400 mt-3">This is a one-time setup step for your Google Cloud project.</p>
+
+            <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
+                <strong class="text-base text-white">Action 2: Verify Your OAuth Scopes</strong>
+                <p class="mt-1 mb-2 text-sm text-slate-400">
+                    The app uses the modern Google Search Console API. For this to work, your project must grant the correct permission. Please go to your <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold">OAuth Consent Screen</a>, edit your app, go to the "Scopes" section, and ensure you have added the <strong class="text-amber-400">".../auth/webmasters.readonly"</strong> scope. This is the correct scope for viewing Search Console data.
+                </p>
+            </div>
+            
+            <p class="text-xs text-slate-400 mt-4">After making changes, please "Sign Out" and sign back in.</p>
         `;
         setPropertiesError(detailedError);
     } finally {

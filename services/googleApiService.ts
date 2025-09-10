@@ -79,7 +79,7 @@ export async function fetchGa4Properties(accessToken: string): Promise<Ga4Proper
  * Fetches a list of GSC sites the user has access to.
  */
 export async function fetchGscSites(accessToken: string): Promise<string[]> {
-    const GSC_API_ENDPOINT = `https://www.googleapis.com/webmasters/v3/sites`;
+    const GSC_API_ENDPOINT = `https://searchconsole.googleapis.com/v1/sites`;
     const response = await fetch(GSC_API_ENDPOINT, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
@@ -104,7 +104,7 @@ async function fetchGscData(
     searchType: 'web' | 'discover',
     rowLimit: number
 ): Promise<GscDataRow[]> {
-    const GSC_API_ENDPOINT = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`;
+    const GSC_API_ENDPOINT = `https://searchconsole.googleapis.com/v1/searchanalytics/query`;
     
     const response = await fetch(GSC_API_ENDPOINT, {
         method: 'POST',
@@ -113,6 +113,7 @@ async function fetchGscData(
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+            siteUrl,
             startDate,
             endDate,
             dimensions,
