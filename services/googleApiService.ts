@@ -11,26 +11,38 @@ import { calculateGrowth, getGrowthType, shortFormatNumber, extractAuthorFromUrl
  * @returns Throws an error with a formatted message.
  */
 async function handleApiError(response: Response, apiName: string): Promise<never> {
-    let errorMessage = `Request failed.`;
+    let detailedMessage = `Request failed with status ${response.status} (${response.statusText}).`;
     try {
-        const errorData = await response.json();
-        // Google APIs have a few common error formats
-        if (errorData.error) {
-            if (typeof errorData.error === 'string') {
-                // Format: { "error": "...", "error_description": "..." }
-                errorMessage = errorData.error_description || errorData.error;
-            } else if (errorData.error.message) {
-                // Format: { "error": { "message": "...", "status": "..." } }
-                errorMessage = errorData.error.message;
+        const errorBodyText = await response.text(); // Read as text first to avoid JSON parsing errors on non-JSON responses.
+        if (!errorBodyText) {
+             throw new Error(`${apiName} Error: ${detailedMessage}`);
+        }
+
+        try {
+            const errorData = JSON.parse(errorBodyText);
+            // Google APIs have a few common error formats. We'll try to parse them for a cleaner message.
+            if (errorData.error) {
+                if (typeof errorData.error === 'string') {
+                    // Format: { "error": "...", "error_description": "..." }
+                    detailedMessage = errorData.error_description || errorData.error;
+                } else if (errorData.error.message) {
+                    // Format: { "error": { "code": 403, "message": "...", "status": "..." } }
+                    detailedMessage = errorData.error.message;
+                }
+            } else if (errorData.message) {
+                detailedMessage = errorData.message;
+            } else {
+                // If we can't find a specific message, include the raw response.
+                detailedMessage += ` Full response: ${errorBodyText}`;
             }
-        } else if (errorData.message) {
-            errorMessage = errorData.message;
+        } catch (jsonError) {
+            // If the response isn't valid JSON, include the raw text.
+            detailedMessage += ` Raw response: ${errorBodyText}`;
         }
     } catch (e) {
-        // Response was not JSON or something else went wrong
-        errorMessage = `Request failed with status ${response.status}: ${response.statusText}`;
+        // Failed to read the response body. The initial status message is the best we have.
     }
-    throw new Error(`${apiName} Error: ${errorMessage}`);
+    throw new Error(`${apiName} Error: ${detailedMessage}`);
 }
 
 
