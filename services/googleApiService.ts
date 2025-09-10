@@ -1,4 +1,4 @@
-import type { AppData, FilterState, GscDataRow, AuthorData, TimeseriesData, Ga4Property } from '../types';
+import type { AppData, FilterState, GscDataRow, AuthorData, TimeseriesData, Ga4Property, UserInfo } from '../types';
 import { calculateGrowth, getGrowthType, shortFormatNumber, extractAuthorFromUrl, formatPercentage, formatDecimal, formatNumber } from '../utils';
 
 // --- HELPER FUNCTIONS ---
@@ -33,6 +33,22 @@ const getDateRange = (dateRange: FilterState['dateRange']): { startDate: string,
 
 
 // --- API CALLS & DATA TRANSFORMATION ---
+
+/**
+ * Fetches user profile information.
+ */
+export async function fetchUserInfo(accessToken: string): Promise<UserInfo> {
+    const USER_INFO_ENDPOINT = 'https://www.googleapis.com/oauth2/v3/userinfo';
+    const response = await fetch(USER_INFO_ENDPOINT, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`User Info API Error: ${error.error.message || 'Failed to fetch user info.'}`);
+    }
+    return await response.json();
+}
+
 
 /**
  * Fetches a list of GA4 properties the user has access to.

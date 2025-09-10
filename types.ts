@@ -12,6 +12,12 @@ export interface FilterState {
   gscSite: string;
 }
 
+export interface UserInfo {
+  email: string;
+  name: string;
+  picture: string;
+}
+
 export interface Ga4Property {
   displayName: string;
   property: string; // e.g., "properties/123456789"

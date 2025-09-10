@@ -4,12 +4,13 @@ import { FilterBar } from './components/FilterBar';
 import { Dashboard } from './components/Dashboard';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { Auth } from './components/Auth';
-import { fetchAnalyticsData, fetchGa4Properties, fetchGscSites } from './services/googleApiService';
+import { fetchAnalyticsData, fetchGa4Properties, fetchGscSites, fetchUserInfo } from './services/googleApiService';
 import { generateHiddenInsights } from './services/geminiService';
-import type { AppData, FilterState, Ga4Property } from './types';
+import type { AppData, FilterState, Ga4Property, UserInfo } from './types';
 
 const App: React.FC = () => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isPropertiesLoading, setIsPropertiesLoading] = useState<boolean>(false);
   const [data, setData] = useState<AppData | null>(null);
@@ -47,40 +48,43 @@ const App: React.FC = () => {
       
       const insights = await generateHiddenInsights(fetchedData);
       setHiddenInsights(insights);
-    } catch (error: any) {
+    } catch (error: any)
+    {
       console.error("Error fetching data or insights:", error);
       
       let errorMessage: string;
   
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
           errorMessage = `
-              <h3 class="text-xl font-semibold text-brand-danger">Request Failed</h3>
+              <h3 class="text-xl font-semibold text-brand-danger">Request Failed: Let's Troubleshoot</h3>
               <div class="max-w-3xl mx-auto mt-4 text-slate-300 text-left">
-                <p class="mb-4 text-center">This "Failed to fetch" error usually points to a configuration issue. Please walk through this checklist:</p>
-                
-                <div class="p-4 border border-slate-600 rounded-lg">
-                    <strong class="text-base text-white">1. Wait a Few Minutes & Sign Out/In</strong>
-                    <p class="mt-1 text-sm text-slate-400">If you just enabled an API, it can take up to 5 minutes for the change to take effect. Please use the "Sign Out" button in the header and sign back in after a short wait to get a fresh token.</p>
+                <p class="mb-4 text-center">This error is almost always a configuration or permissions issue. Please carefully check these common causes:</p>
+
+                <div class="mt-4 p-4 border border-slate-600 rounded-lg">
+                  <strong class="text-base text-white">1. Verify Correct Google Account</strong>
+                  <p class="mt-1 text-sm text-slate-400">
+                    Look at the top-right of the header. Is the email address shown there the one that has <strong class="text-amber-400">"Viewer"</strong> access to your GA4 Property? If not, please sign out and sign back in with the correct account.
+                  </p>
                 </div>
 
                 <div class="mt-4 p-4 border border-slate-600 rounded-lg">
-                  <strong class="text-base text-white">2. Check Required APIs & Billing</strong>
-                  <p class="mt-1 text-sm text-slate-400">Ensure the <strong class="text-amber-400">"Google Analytics Data API"</strong> is enabled in the correct Google Cloud project. This is the project that contains your OAuth Client ID.</p>
-                  <p class="mt-2 text-sm text-slate-400">Also, some APIs require <strong class="text-amber-400">Billing</strong> to be enabled on the project, even if you are within the free tier.</p>
-                  <div class="text-left inline-block mt-2">
-                    <a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">Enable the Data API</a>
-                  </div>
+                  <strong class="text-base text-white">2. Check Google Cloud Project Configuration</strong>
+                  <p class="mt-1 text-sm text-slate-400">
+                    The OAuth Client ID you are using <strong class="text-amber-400">MUST</strong> belong to the same Google Cloud project where you enabled the "Google Analytics Data API". This is the most common point of failure.
+                  </p>
+                   <div class="text-left inline-block mt-2">
+                     <a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">Check/Enable the Data API Here</a>
+                   </div>
                 </div>
 
                 <div class="mt-4 p-4 border border-slate-600 rounded-lg">
-                  <strong class="text-base text-white">3. Verify Google Analytics Permissions</strong>
-                  <p class="mt-1 text-sm text-slate-400">The signed-in user must have at least <strong class="text-amber-400">"Viewer"</strong> permissions for the selected GA4 property (<strong class="text-amber-400">${filters.ga4Property}</strong>).</p>
-                   <p class="mt-2 text-sm text-slate-400">
-                    <strong>Solution:</strong> Ask a Google Analytics administrator to grant your account the "Viewer" role on that specific property.
+                  <strong class="text-base text-white">3. Ensure Billing is Enabled</strong>
+                  <p class="mt-1 text-sm text-slate-400">
+                    Even if you are within the free tier, Google requires <strong class="text-amber-400">Billing</strong> to be enabled on your Cloud project to use many APIs.
                   </p>
                 </div>
                 
-                <p class="text-xs text-slate-500 mt-4 text-center">After making any changes, please use the "Sign Out" button and sign back in to refresh your permissions.</p>
+                <p class="text-xs text-slate-500 mt-4 text-center">After making any changes, please use the "Sign Out" button and sign back in to refresh your permissions. A hard refresh (Ctrl+Shift+R or Cmd+Shift+R) can also help.</p>
               </div>
           `;
       } else {
@@ -104,10 +108,12 @@ const App: React.FC = () => {
     setIsPropertiesLoading(true);
     setPropertiesError(null);
     try {
-        const [ga4Props, gscProps] = await Promise.all([
+        const [ga4Props, gscProps, userInfo] = await Promise.all([
             fetchGa4Properties(token),
-            fetchGscSites(token)
+            fetchGscSites(token),
+            fetchUserInfo(token),
         ]);
+        setUserInfo(userInfo);
         setGa4Properties(ga4Props);
         setGscSites(gscProps);
         
@@ -140,6 +146,7 @@ const App: React.FC = () => {
 
   const handleSignOut = () => {
     setAccessToken(null);
+    setUserInfo(null);
     setData(null);
     setError(null);
     setPropertiesError(null);
@@ -172,7 +179,7 @@ const App: React.FC = () => {
   
   return (
     <div className="min-h-screen bg-slate-900 font-sans">
-      <Header onSignOut={handleSignOut} />
+      <Header userInfo={userInfo} onSignOut={handleSignOut} />
       <main className="p-4 sm:p-6 lg:p-8">
         <FilterBar 
             filters={filters} 
