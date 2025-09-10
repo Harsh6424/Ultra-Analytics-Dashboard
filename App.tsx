@@ -129,25 +129,42 @@ const App: React.FC = () => {
     } catch(err: any) {
         console.error("Failed to load user properties:", err);
         const detailedError = `
-            <strong class="text-base">Could not load your GA4/GSC properties.</strong>
-            <p class="mt-2">This is usually because of a mismatch between the APIs enabled in your Google Cloud project and the permissions (scopes) you've granted this app.</p>
+            <strong class="text-base text-brand-danger">Authentication Error: Could not load your GA4/GSC properties.</strong>
+            <p class="mt-2">I know this is incredibly frustrating. Let's fix this for good. This error almost always means there's a configuration mismatch in your Google Cloud project. Please follow these steps exactly:</p>
 
             <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
-                <strong class="text-base text-white">Action 1: Enable the Correct APIs</strong>
-                <p class="mt-1 mb-2 text-sm text-slate-400">Please click the links below to ensure the necessary APIs are enabled for your project. This is a one-time setup step.</p>
-                <a href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">1. Enable the Google Analytics Admin API</a>
-                <br />
-                <a href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">2. Enable the Google Search Console API</a>
+                <strong class="text-base text-white">Step 1: Find Your Correct Google Cloud Project ID</strong>
+                <p class="mt-1 mb-2 text-sm text-slate-400">The OAuth Client ID you're using is tied to ONE specific project. All APIs must be enabled there.</p>
+                <ol class="list-decimal list-inside space-y-1 text-sm">
+                    <li>Go to your <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline">Credentials page</a>.</li>
+                    <li>Find the "OAuth 2.0 Client ID" you are using for this app.</li>
+                    <li>Look at the top of the Google Cloud console. Does the Project Name and ID shown there match the project you expect? If you're not sure, click the project name at the top to see a list of all your projects. Make sure you select the right one before proceeding. <strong class="text-amber-400">This is the most common point of failure.</strong></li>
+                </ol>
             </div>
 
             <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
-                <strong class="text-base text-white">Action 2: Verify Your OAuth Scopes</strong>
+                <strong class="text-base text-white">Step 2: Verify APIs are Enabled (In the Correct Project)</strong>
+                <p class="mt-1 mb-2 text-sm text-slate-400">Once you are certain you are in the correct project, click these links to enable the required APIs. If they are already enabled, leave them as-is.</p>
+                <a href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">1. Enable Google Analytics Admin API</a>
+                <br />
+                <a href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">2. Enable Google Search Console API</a>
+                <br />
+                <a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">3. Enable Google Analytics Data API</a>
+            </div>
+
+            <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
+                <strong class="text-base text-white">Step 3: The "Reset Button" - Force a New Permission Grant</strong>
                 <p class="mt-1 mb-2 text-sm text-slate-400">
-                    The app uses the modern Google Search Console API. For this to work, your project must grant the correct permission. Please go to your <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold">OAuth Consent Screen</a>, edit your app, go to the "Scopes" section, and ensure you have added the <strong class="text-amber-400">".../auth/webmasters.readonly"</strong> scope. This is the correct scope for viewing Search Console data.
+                    Sometimes your browser holds on to an old, incorrect permission grant. Revoking the app's access forces it to ask for the correct permissions again from scratch.
                 </p>
+                <ol class="list-decimal list-inside space-y-1 text-sm">
+                  <li>Click this link to go to your Google Account permissions page: <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold">Google Account Permissions</a></li>
+                  <li>Find this application in the list (it may be called "GA4 & GSC SEO Analytics Dashboard" or the name you gave it).</li>
+                  <li>Click on it, and then click <strong class="text-amber-400">"Remove Access"</strong>.</li>
+                </ol>
             </div>
             
-            <p class="text-xs text-slate-400 mt-4">After making changes, please "Sign Out" and sign back in.</p>
+            <p class="text-sm font-semibold text-slate-300 mt-4">After completing all steps, please "Sign Out" from the top-right of this app, and then sign back in. This will trigger a fresh authentication flow.</p>
         `;
         setPropertiesError(detailedError);
     } finally {
