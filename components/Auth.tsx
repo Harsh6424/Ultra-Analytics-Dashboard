@@ -25,7 +25,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
     try {
       const client = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/searchconsole.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+        scope: 'https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
         callback: (tokenResponse: any) => {
           if (tokenResponse && tokenResponse.access_token) {
             onAuthSuccess(tokenResponse.access_token);
