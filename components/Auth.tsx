@@ -9,7 +9,7 @@ interface AuthProps {
 }
 
 // IMPORTANT: Replace with your actual Google Cloud Client ID
-const GOOGLE_CLIENT_ID = '569678483576-6c86kgrrpu1pav3mqj93u3n51cj9uilf.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '353746870042-ptuffqad5p8nuh8p7n4jcfuvfsqeep1a.apps.googleusercontent.com';
 
 type AuthError = {
     type: 'popup_blocker' | 'config' | 'token' | 'init' | 'popup_closed';
