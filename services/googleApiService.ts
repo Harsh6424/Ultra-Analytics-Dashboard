@@ -1,110 +1,218 @@
-
 import type { AppData, FilterState, GscDataRow, AuthorData, TimeseriesData, Ga4Property, UserInfo } from '../types';
 import { calculateGrowth, getGrowthType, shortFormatNumber, extractAuthorFromUrl, formatPercentage, formatDecimal, formatNumber } from '../utils';
+
+// --- CACHE IMPLEMENTATION ---
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+}
+
+class DataCache {
+  private cache = new Map<string, CacheEntry>();
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  get(key: string): any | null {
+    const entry = this.cache.get(key);
+    if (entry && Date.now() - entry.timestamp < this.CACHE_DURATION) {
+      console.log(`Cache hit for: ${key}`);
+      return entry.data;
+    }
+    if (entry) {
+      this.cache.delete(key); // Remove expired entry
+    }
+    return null;
+  }
+
+  set(key: string, data: any): void {
+    this.cache.set(key, { data, timestamp: Date.now() });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+const dataCache = new DataCache();
+
+// --- RETRY LOGIC ---
+async function fetchWithRetry(
+  url: string, 
+  options: RequestInit, 
+  maxRetries = 3
+): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await fetch(url, options);
+      
+      // If successful, return
+      if (response.ok) {
+        return response;
+      }
+      
+      // If rate limited, wait and retry
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        const delay = retryAfter ? parseInt(retryAfter) * 1000 : (i + 1) * 2000;
+        console.log(`Rate limited. Waiting ${delay}ms before retry ${i + 1}/${maxRetries}`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      // If unauthorized, don't retry
+      if (response.status === 401 || response.status === 403) {
+        return response;
+      }
+      
+      // For other errors, try again
+      lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+      
+    } catch (error) {
+      lastError = error as Error;
+      console.error(`Attempt ${i + 1} failed:`, error);
+      
+      // Wait before retrying
+      if (i < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, (i + 1) * 1000));
+      }
+    }
+  }
+  
+  throw lastError || new Error('Failed to fetch after retries');
+}
 
 // --- HELPER FUNCTIONS ---
 
 /**
  * Parses a failed API response to extract the most descriptive error message.
- * @param response The raw Response object from a failed fetch call.
- * @param apiName A friendly name for the API that was called (e.g., "GA4 Admin").
- * @returns Throws an error with a formatted message.
  */
 async function handleApiError(response: Response, apiName: string): Promise<never> {
     let detailedMessage = `Request failed with status ${response.status} (${response.statusText}).`;
     try {
-        const errorBodyText = await response.text(); // Read as text first to avoid JSON parsing errors on non-JSON responses.
+        const errorBodyText = await response.text();
         if (!errorBodyText) {
              throw new Error(`${apiName} Error: ${detailedMessage}`);
         }
 
         try {
             const errorData = JSON.parse(errorBodyText);
-            // Google APIs have a few common error formats. We'll try to parse them for a cleaner message.
             if (errorData.error) {
                 if (typeof errorData.error === 'string') {
-                    // Format: { "error": "...", "error_description": "..." }
                     detailedMessage = errorData.error_description || errorData.error;
                 } else if (errorData.error.message) {
-                    // Format: { "error": { "code": 403, "message": "...", "status": "..." } }
                     detailedMessage = errorData.error.message;
                 }
             } else if (errorData.message) {
                 detailedMessage = errorData.message;
             } else {
-                // If we can't find a specific message, include the raw response.
                 detailedMessage += ` Full response: ${errorBodyText}`;
             }
         } catch (jsonError) {
-            // If the response isn't valid JSON, include the raw text.
             detailedMessage += ` Raw response: ${errorBodyText}`;
         }
     } catch (e) {
-        // Failed to read the response body. The initial status message is the best we have.
+        // Failed to read the response body
     }
     throw new Error(`${apiName} Error: ${detailedMessage}`);
 }
 
-
 /**
- * Converts a date range string (e.g., 'last-28d') into start and end dates.
+ * Converts a date range string into start and end dates.
  */
-const getDateRange = (dateRange: FilterState['dateRange']): { startDate: string, endDate: string } => {
+const getDateRange = (dateRange: FilterState['dateRange']): { 
+  startDate: string, 
+  endDate: string,
+  previousStartDate: string,
+  previousEndDate: string 
+} => {
     const endDate = new Date();
-    const startDate = new Date();
+    endDate.setDate(endDate.getDate() - 1); // Yesterday to ensure complete data
+    const startDate = new Date(endDate);
+    
+    let daysDiff = 28;
     
     switch(dateRange) {
         case 'last-30d':
-            startDate.setDate(endDate.getDate() - 30);
+            daysDiff = 30;
+            startDate.setDate(endDate.getDate() - 29);
             break;
         case 'last-3m':
+            daysDiff = 90;
             startDate.setMonth(endDate.getMonth() - 3);
             break;
         case 'last-6m':
+            daysDiff = 180;
             startDate.setMonth(endDate.getMonth() - 6);
             break;
         case 'last-28d':
         default:
-            startDate.setDate(endDate.getDate() - 28);
+            daysDiff = 28;
+            startDate.setDate(endDate.getDate() - 27);
             break;
     }
     
+    // Calculate previous period for comparison
+    const previousEndDate = new Date(startDate);
+    previousEndDate.setDate(previousEndDate.getDate() - 1);
+    const previousStartDate = new Date(previousEndDate);
+    previousStartDate.setDate(previousEndDate.getDate() - (daysDiff - 1));
+    
     // Format to YYYY-MM-DD
     const toApiDateString = (date: Date) => date.toISOString().split('T')[0];
-    return { startDate: toApiDateString(startDate), endDate: toApiDateString(endDate) };
+    
+    return { 
+        startDate: toApiDateString(startDate), 
+        endDate: toApiDateString(endDate),
+        previousStartDate: toApiDateString(previousStartDate),
+        previousEndDate: toApiDateString(previousEndDate)
+    };
 }
 
-
-// --- API CALLS & DATA TRANSFORMATION ---
+// --- API CALLS ---
 
 /**
  * Fetches user profile information.
  */
 export async function fetchUserInfo(accessToken: string): Promise<UserInfo> {
+    const cacheKey = `userInfo_${accessToken.substring(0, 10)}`;
+    const cached = dataCache.get(cacheKey);
+    if (cached) return cached;
+
     const USER_INFO_ENDPOINT = 'https://www.googleapis.com/oauth2/v3/userinfo';
-    const response = await fetch(USER_INFO_ENDPOINT, {
+    const response = await fetchWithRetry(USER_INFO_ENDPOINT, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
+    
     if (!response.ok) {
         return handleApiError(response, 'User Info');
     }
-    return response.json();
+    
+    const data = await response.json();
+    dataCache.set(cacheKey, data);
+    return data;
 }
-
 
 /**
  * Fetches a list of GA4 properties the user has access to.
  */
 export async function fetchGa4Properties(accessToken: string): Promise<Ga4Property[]> {
+    const cacheKey = `ga4Properties_${accessToken.substring(0, 10)}`;
+    const cached = dataCache.get(cacheKey);
+    if (cached) return cached;
+
     const GA4_ADMIN_API_ENDPOINT = `https://analyticsadmin.googleapis.com/v1beta/accountSummaries`;
-    const response = await fetch(GA4_ADMIN_API_ENDPOINT, {
+    const response = await fetchWithRetry(GA4_ADMIN_API_ENDPOINT, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
+    
     if (!response.ok) {
         return handleApiError(response, 'GA4 Admin');
     }
+    
     const result = await response.json();
     const properties: Ga4Property[] = [];
+    
     if (result.accountSummaries) {
         for (const account of result.accountSummaries) {
             if (account.propertySummaries) {
@@ -112,24 +220,34 @@ export async function fetchGa4Properties(accessToken: string): Promise<Ga4Proper
             }
         }
     }
-    return properties.sort((a, b) => a.displayName.localeCompare(b.displayName));
+    
+    const sortedProperties = properties.sort((a, b) => a.displayName.localeCompare(b.displayName));
+    dataCache.set(cacheKey, sortedProperties);
+    return sortedProperties;
 }
 
 /**
  * Fetches a list of GSC sites the user has access to.
  */
 export async function fetchGscSites(accessToken: string): Promise<string[]> {
+    const cacheKey = `gscSites_${accessToken.substring(0, 10)}`;
+    const cached = dataCache.get(cacheKey);
+    if (cached) return cached;
+
     const GSC_API_ENDPOINT = `https://searchconsole.googleapis.com/v1/sites`;
-    const response = await fetch(GSC_API_ENDPOINT, {
+    const response = await fetchWithRetry(GSC_API_ENDPOINT, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
     });
+    
     if (!response.ok) {
         return handleApiError(response, 'GSC Sites');
     }
+    
     const result = await response.json();
-    return result.siteEntry?.map((site: any) => site.siteUrl).sort() || [];
+    const sites = result.siteEntry?.map((site: any) => site.siteUrl).sort() || [];
+    dataCache.set(cacheKey, sites);
+    return sites;
 }
-
 
 /**
  * Fetches data from Google Search Console API.
@@ -139,13 +257,17 @@ async function fetchGscData(
     accessToken: string,
     startDate: string,
     endDate: string,
-    dimensions: ('query'|'page'|'country'|'device')[],
+    dimensions: ('query'|'page'|'country'|'device'|'date')[],
     searchType: 'web' | 'discover',
     rowLimit: number
 ): Promise<GscDataRow[]> {
+    const cacheKey = `gsc_${siteUrl}_${startDate}_${endDate}_${dimensions.join('_')}_${searchType}_${rowLimit}`;
+    const cached = dataCache.get(cacheKey);
+    if (cached) return cached;
+
     const GSC_API_ENDPOINT = `https://searchconsole.googleapis.com/v1/searchanalytics/query`;
     
-    const response = await fetch(GSC_API_ENDPOINT, {
+    const response = await fetchWithRetry(GSC_API_ENDPOINT, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -158,6 +280,7 @@ async function fetchGscData(
             dimensions,
             searchType,
             rowLimit,
+            aggregationType: 'auto',
         }),
     });
 
@@ -171,16 +294,117 @@ async function fetchGscData(
         return [];
     }
 
-    // Transform the raw API response into our AppData structure.
-    return result.rows.map((row: any): GscDataRow => ({
-        key: row.keys[0],
+    const data = result.rows.map((row: any): GscDataRow => ({
+        key: dimensions.includes('date') ? row.keys[0] : row.keys[0],
         clicks: row.clicks,
         impressions: row.impressions,
         ctr: row.ctr,
         position: row.position,
     }));
+    
+    dataCache.set(cacheKey, data);
+    return data;
 }
 
+/**
+ * Fetches time series data from GSC
+ */
+async function fetchGscTrends(
+    siteUrl: string,
+    accessToken: string,
+    startDate: string,
+    endDate: string,
+    searchType: 'web' | 'discover' = 'web'
+): Promise<TimeseriesData[]> {
+    const cacheKey = `gscTrends_${siteUrl}_${startDate}_${endDate}_${searchType}`;
+    const cached = dataCache.get(cacheKey);
+    if (cached) return cached;
+
+    const GSC_API_ENDPOINT = `https://searchconsole.googleapis.com/v1/searchanalytics/query`;
+    
+    const response = await fetchWithRetry(GSC_API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            siteUrl,
+            startDate,
+            endDate,
+            dimensions: ['date'],
+            searchType,
+            aggregationType: 'auto',
+        }),
+    });
+
+    if (!response.ok) {
+        return handleApiError(response, 'GSC Trends');
+    }
+
+    const result = await response.json();
+    
+    if (!result.rows) {
+        return [];
+    }
+
+    const data = result.rows.map((row: any): TimeseriesData => ({
+        date: row.keys[0],
+        clicks: row.clicks,
+        impressions: row.impressions,
+    }));
+    
+    dataCache.set(cacheKey, data);
+    return data;
+}
+
+/**
+ * Fetches time series data from GA4
+ */
+async function fetchGa4Trends(
+    propertyId: string,
+    accessToken: string,
+    startDate: string,
+    endDate: string
+): Promise<TimeseriesData[]> {
+    const cacheKey = `ga4Trends_${propertyId}_${startDate}_${endDate}`;
+    const cached = dataCache.get(cacheKey);
+    if (cached) return cached;
+
+    const GA4_API_ENDPOINT = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`;
+
+    const response = await fetchWithRetry(GA4_API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            dateRanges: [{ startDate, endDate }],
+            dimensions: [{ name: 'date' }],
+            metrics: [{ name: 'sessions' }, { name: 'screenPageViews' }],
+            orderBys: [{ dimension: { dimensionName: 'date' } }],
+        }),
+    });
+
+    if (!response.ok) {
+        return handleApiError(response, 'GA4 Trends');
+    }
+    
+    const result = await response.json();
+    
+    if (!result.rows) {
+        return [];
+    }
+
+    const data = result.rows.map((row: any): TimeseriesData => ({
+        date: row.dimensionValues[0].value.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
+        sessions: parseInt(row.metricValues[0].value, 10),
+    }));
+    
+    dataCache.set(cacheKey, data);
+    return data;
+}
 
 /**
  * Fetches aggregate totals from Google Analytics 4 Data API.
@@ -191,9 +415,13 @@ async function fetchGa4Totals(
     startDate: string,
     endDate: string
 ): Promise<{ sessions: number, pageviews: number }> {
+    const cacheKey = `ga4Totals_${propertyId}_${startDate}_${endDate}`;
+    const cached = dataCache.get(cacheKey);
+    if (cached) return cached;
+
     const GA4_API_ENDPOINT = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`;
 
-    const response = await fetch(GA4_API_ENDPOINT, {
+    const response = await fetchWithRetry(GA4_API_ENDPOINT, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -210,77 +438,197 @@ async function fetchGa4Totals(
     }
     
     const result = await response.json();
-    const totalsRow = result.totals?.[0]?.metricValues;
+    const totalsRow = result.rows?.[0]?.metricValues;
 
-    const sessions = parseInt(totalsRow?.find((m: any) => m.metricName === 'sessions')?.value || '0', 10);
-    const pageviews = parseInt(totalsRow?.find((m: any) => m.metricName === 'screenPageViews')?.value || '0', 10);
+    const sessions = parseInt(totalsRow?.[0]?.value || '0', 10);
+    const pageviews = parseInt(totalsRow?.[1]?.value || '0', 10);
 
-    return { sessions, pageviews };
+    const data = { sessions, pageviews };
+    dataCache.set(cacheKey, data);
+    return data;
 }
 
+/**
+ * Fetches author data from GA4 by analyzing page paths
+ */
+async function fetchAuthorData(
+    propertyId: string,
+    accessToken: string,
+    startDate: string,
+    endDate: string,
+    topN: number
+): Promise<AuthorData[]> {
+    if (!propertyId || !accessToken) return [];
+
+    const cacheKey = `authorData_${propertyId}_${startDate}_${endDate}_${topN}`;
+    const cached = dataCache.get(cacheKey);
+    if (cached) return cached;
+
+    const GA4_API_ENDPOINT = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`;
+
+    const response = await fetchWithRetry(GA4_API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            dateRanges: [{ startDate, endDate }],
+            dimensions: [{ name: 'pagePath' }],
+            metrics: [{ name: 'screenPageViews' }],
+            limit: topN * 3, // Get more URLs to extract author patterns
+            orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+        }),
+    });
+
+    if (!response.ok) {
+        console.error('Failed to fetch author data');
+        return [];
+    }
+    
+    const result = await response.json();
+    
+    if (!result.rows) {
+        return [];
+    }
+
+    // Aggregate by author
+    const authorMap = new Map<string, { articles: Set<string>, totalPageviews: number }>();
+    
+    result.rows.forEach((row: any) => {
+        const pagePath = row.dimensionValues[0].value;
+        const pageviews = parseInt(row.metricValues[0].value, 10);
+        const author = extractAuthorFromUrl(pagePath);
+        
+        if (author !== 'Unknown Author') {
+            const existing = authorMap.get(author) || { articles: new Set(), totalPageviews: 0 };
+            existing.articles.add(pagePath);
+            existing.totalPageviews += pageviews;
+            authorMap.set(author, existing);
+        }
+    });
+
+    // Convert to AuthorData array
+    const authorData: AuthorData[] = Array.from(authorMap.entries())
+        .map(([author, data]) => ({
+            author,
+            articles: data.articles.size,
+            totalPageviews: data.totalPageviews,
+            avgPageviews: data.totalPageviews / data.articles.size,
+        }))
+        .sort((a, b) => b.totalPageviews - a.totalPageviews)
+        .slice(0, topN);
+
+    dataCache.set(cacheKey, authorData);
+    return authorData;
+}
 
 // --- MAIN DATA FETCHER ---
-
 export const fetchAnalyticsData = async (filters: FilterState, accessToken: string): Promise<AppData> => {
     
-    const { startDate, endDate } = getDateRange(filters.dateRange);
+    const { startDate, endDate, previousStartDate, previousEndDate } = getDateRange(filters.dateRange);
 
-    // --- Execute all API calls in parallel for performance ---
+    // Execute all API calls in parallel for performance
     const [
         gscWebKeywords,
         gscWebUrls,
         gscWebCountries,
         gscWebDevices,
         gscDiscoverUrls,
-        ga4Totals
+        gscDiscoverCountries,
+        gscDiscoverDevices,
+        ga4CurrentTotals,
+        ga4PreviousTotals,
+        ga4Trends,
+        gscTrends,
+        authorData
     ] = await Promise.all([
         fetchGscData(filters.gscSite, accessToken, startDate, endDate, ['query'], 'web', filters.topN),
         fetchGscData(filters.gscSite, accessToken, startDate, endDate, ['page'], 'web', filters.topN),
         fetchGscData(filters.gscSite, accessToken, startDate, endDate, ['country'], 'web', filters.topN),
         fetchGscData(filters.gscSite, accessToken, startDate, endDate, ['device'], 'web', filters.topN),
         fetchGscData(filters.gscSite, accessToken, startDate, endDate, ['page'], 'discover', filters.topN),
+        fetchGscData(filters.gscSite, accessToken, startDate, endDate, ['country'], 'discover', filters.topN),
+        fetchGscData(filters.gscSite, accessToken, startDate, endDate, ['device'], 'discover', filters.topN),
         fetchGa4Totals(`properties/${filters.ga4Property}`, accessToken, startDate, endDate),
+        filters.compare ? fetchGa4Totals(`properties/${filters.ga4Property}`, accessToken, previousStartDate, previousEndDate) : Promise.resolve({ sessions: 0, pageviews: 0 }),
+        fetchGa4Trends(`properties/${filters.ga4Property}`, accessToken, startDate, endDate),
+        fetchGscTrends(filters.gscSite, accessToken, startDate, endDate),
+        filters.authorAnalysis ? fetchAuthorData(`properties/${filters.ga4Property}`, accessToken, startDate, endDate, filters.topN) : Promise.resolve([])
     ]);
 
-    // --- MOCK DATA FOR UNIMPLEMENTED PARTS (for demonstration) ---
-    // NOTE: These require more complex API calls with 'date' or 'pagePath' dimensions.
-    const generateMockTrend = () => Array.from({length: 28}, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - (27-i));
-        return { date: d.toISOString().split('T')[0], sessions: 5000+i*50, clicks: 4000+i*40, impressions: 60000+i*300 };
-    });
-    const mockAuthors = filters.authorAnalysis ? [{author: 'Author A (mock)', articles: 5, totalPageviews: 12500, avgPageviews: 2500}] : [];
+    // Calculate metrics
+    const currentPeriodSessions = ga4CurrentTotals.sessions;
+    const currentPeriodPageviews = ga4CurrentTotals.pageviews;
+    const previousPeriodSessions = ga4PreviousTotals.sessions;
+    const previousPeriodPageviews = ga4PreviousTotals.pageviews;
     
-    const currentPeriodSessions = ga4Totals.sessions;
-    const currentPeriodPageviews = ga4Totals.pageviews;
     const totalGscClicks = gscWebKeywords.reduce((sum, row) => sum + row.clicks, 0);
     const totalGscImpressions = gscWebKeywords.reduce((sum, row) => sum + row.impressions, 0);
+    const avgPosition = gscWebKeywords.length > 0 
+        ? gscWebKeywords.reduce((sum, row) => sum + (row.position || 0), 0) / gscWebKeywords.length 
+        : 0;
+
+    // Calculate growth
+    const sessionsGrowth = filters.compare ? calculateGrowth(currentPeriodSessions, previousPeriodSessions) : undefined;
+    const pageviewsGrowth = filters.compare ? calculateGrowth(currentPeriodPageviews, previousPeriodPageviews) : undefined;
+
+    // Find highest performing day (from trends data)
+    const highestSessionsDay = ga4Trends.reduce((max, day) => 
+        (day.sessions || 0) > (max.sessions || 0) ? day : max, 
+        { date: '', sessions: 0 }
+    );
 
     const appData: AppData = {
         kpis: [
-            { label: 'Sessions', value: shortFormatNumber(currentPeriodSessions) },
-            { label: 'Pageviews', value: shortFormatNumber(currentPeriodPageviews) },
-            { label: 'Pageviews / Session', value: formatDecimal(currentPeriodSessions > 0 ? currentPeriodPageviews / currentPeriodSessions : 0) },
-            { label: 'GSC Clicks', value: shortFormatNumber(totalGscClicks) },
-            { label: 'GSC Impressions', value: shortFormatNumber(totalGscImpressions) },
-            { label: 'GSC Avg. CTR', value: formatPercentage(totalGscImpressions > 0 ? totalGscClicks / totalGscImpressions : 0) },
-            { label: 'GSC Avg. Position', value: '...' },
+            { 
+                label: 'Sessions', 
+                value: shortFormatNumber(currentPeriodSessions),
+                change: sessionsGrowth,
+                changeType: sessionsGrowth ? getGrowthType(sessionsGrowth) : undefined
+            },
+            { 
+                label: 'Pageviews', 
+                value: shortFormatNumber(currentPeriodPageviews),
+                change: pageviewsGrowth,
+                changeType: pageviewsGrowth ? getGrowthType(pageviewsGrowth) : undefined
+            },
+            { 
+                label: 'Pages/Session', 
+                value: formatDecimal(currentPeriodSessions > 0 ? currentPeriodPageviews / currentPeriodSessions : 0) 
+            },
+            { 
+                label: 'GSC Clicks', 
+                value: shortFormatNumber(totalGscClicks) 
+            },
+            { 
+                label: 'GSC Impressions', 
+                value: shortFormatNumber(totalGscImpressions) 
+            },
+            { 
+                label: 'GSC CTR', 
+                value: formatPercentage(totalGscImpressions > 0 ? totalGscClicks / totalGscImpressions : 0) 
+            },
+            { 
+                label: 'Avg Position', 
+                value: formatDecimal(avgPosition) 
+            },
         ],
         diagnostics: [
-            { property: 'Domain Age', value: 'N/A' },
-            { property: 'Domain Authority', value: 'N/A' },
-            { property: 'Monthly Sessions', value: formatNumber(currentPeriodSessions) },
-            { property: 'Monthly Pageviews', value: formatNumber(currentPeriodPageviews) },
-            { property: 'MoM Growth Sessions', value: '—' },
-            { property: 'MoM Growth Pageviews', value: '—' },
-            { property: 'Highest Sessions Month', value: `...` },
-            { property: 'Highest Pageviews Month', value: `...` },
-            { property: 'Pageviews / Session', value: formatDecimal(currentPeriodSessions > 0 ? currentPeriodPageviews / currentPeriodSessions : 0) },
-            { property: '3 Month Growth Sessions', value: '—' },
-            { property: 'GSC Clicks (Period)', value: formatNumber(totalGscClicks) },
-            { property: 'GSC Impressions (Period)', value: formatNumber(totalGscImpressions) },
-            { property: 'GSC Avg CTR (Period)', value: formatPercentage(totalGscImpressions > 0 ? totalGscClicks / totalGscImpressions : 0) },
-            { property: 'GSC Avg Position (Period)', value: '...' },
+            { property: 'Analysis Period', value: `${startDate} to ${endDate}` },
+            { property: 'GA4 Property', value: filters.ga4Property },
+            { property: 'GSC Site', value: filters.gscSite },
+            { property: 'Total Sessions', value: formatNumber(currentPeriodSessions) },
+            { property: 'Total Pageviews', value: formatNumber(currentPeriodPageviews) },
+            { property: 'Sessions Growth', value: sessionsGrowth || '—' },
+            { property: 'Pageviews Growth', value: pageviewsGrowth || '—' },
+            { property: 'Highest Sessions Day', value: highestSessionsDay.date ? `${highestSessionsDay.date} (${formatNumber(highestSessionsDay.sessions || 0)})` : '—' },
+            { property: 'Pages per Session', value: formatDecimal(currentPeriodSessions > 0 ? currentPeriodPageviews / currentPeriodSessions : 0) },
+            { property: 'GSC Total Clicks', value: formatNumber(totalGscClicks) },
+            { property: 'GSC Total Impressions', value: formatNumber(totalGscImpressions) },
+            { property: 'GSC Average CTR', value: formatPercentage(totalGscImpressions > 0 ? totalGscClicks / totalGscImpressions : 0) },
+            { property: 'GSC Average Position', value: formatDecimal(avgPosition) },
+            { property: 'Top Performing Device', value: gscWebDevices[0]?.key || '—' },
         ],
         gsc: {
           web: {
@@ -291,16 +639,21 @@ export const fetchAnalyticsData = async (filters: FilterState, accessToken: stri
           },
           discover: {
             urls: gscDiscoverUrls,
-            countries: [], // TODO: Add API call for discover countries
-            devices: [],   // TODO: Add API call for discover devices
+            countries: gscDiscoverCountries,
+            devices: gscDiscoverDevices,
           }
         },
-        authors: mockAuthors, // TODO: Replace with a GA4 API call (dimension: pagePath, metric: screenPageViews) and process URLs.
-        trends: { // TODO: Replace with GA4/GSC API calls with a 'date' dimension.
-          ga4: generateMockTrend().map(({date, sessions}) => ({date, sessions})),
-          gsc: generateMockTrend().map(({date, clicks, impressions}) => ({date, clicks, impressions})),
+        authors: authorData,
+        trends: {
+          ga4: ga4Trends,
+          gsc: gscTrends,
         }
     };
 
     return appData;
+};
+
+// Export cache clear function for when user signs out
+export const clearDataCache = () => {
+    dataCache.clear();
 };
