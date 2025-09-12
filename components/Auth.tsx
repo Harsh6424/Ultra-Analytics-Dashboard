@@ -22,6 +22,18 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
     // Check if client ID is configured
     if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === 'your_google_client_id_here') {
       setError({ type: 'missing_config' });
+
+      // Add this function in Auth.tsx
+const forceReauth = () => {
+  // Clear all Google auth cookies
+  google.accounts.id.disableAutoSelect();
+  
+  // Then trigger login
+  handleLogin();
+};
+
+// Add this button in your JSX (temporarily for testing)
+<button onClick={forceReauth}>Force Fresh Login</button>
       return;
     }
 
