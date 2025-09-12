@@ -20,20 +20,17 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
 
   const handleLogin = () => {
     // Check if client ID is configured
-    if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === 'your_google_client_id_here') {
+    if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === '353746870042-ptuffqad5p8nuh8p7n4jcfuvfsqeep1a.apps.googleusercontent.com') {
       setError({ type: 'missing_config' });
+      return;
+    }
 
     setIsAuthenticating(true);
     setError(null);
     try {
       const client = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
-        scope: [
-    'https://www.googleapis.com/auth/analytics.readonly',
-    'https://www.googleapis.com/auth/webmasters.readonly', 
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/userinfo.profile'
-  ].join(' '),
+        scope: 'https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
         callback: (tokenResponse: any) => {
           if (tokenResponse && tokenResponse.access_token) {
             // Store token expiry time for better session management
