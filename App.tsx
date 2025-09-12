@@ -31,6 +31,40 @@ const App: React.FC = () => {
     gscSite: '',
   });
 
+  const handleAuthSuccess = useCallback(async (token: string) => {
+    setAccessToken(token);
+    setIsPropertiesLoading(true);
+    setPropertiesError(null);
+    
+    // Add debug logging
+    console.log('Token received:', token.substring(0, 20) + '...');
+    
+    try {
+        // Test each API individually to see which one fails
+        console.log('Fetching GA4 properties...');
+        const ga4Props = await fetchGa4Properties(token);
+        console.log('GA4 Properties:', ga4Props);
+        
+        console.log('Fetching GSC sites...');
+        const gscProps = await fetchGscSites(token);
+        console.log('GSC Sites:', gscProps);
+        
+        console.log('Fetching user info...');
+        const userInfo = await fetchUserInfo(token);
+        console.log('User Info:', userInfo);
+        
+        setUserInfo(userInfo);
+        setGa4Properties(ga4Props);
+        setGscSites(gscProps);
+        
+        // ... rest of your code
+    } catch(err: any) {
+        console.error("Detailed error:", err);
+        console.error("Error response:", err.response);
+        // ... rest of error handling
+    }
+}, []);
+
   const fetchDataAndInsights = useCallback(async (token: string) => {
     setIsLoading(true);
     setHiddenInsights('');
