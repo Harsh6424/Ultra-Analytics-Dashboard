@@ -1,4 +1,4 @@
-
+import { clearDataCache } from './services/googleApiService';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { FilterBar } from './components/FilterBar';
@@ -190,6 +190,8 @@ const App: React.FC = () => {
         authorAnalysis: true,
         ga4Property: '',
         gscSite: '',
+      clearDataCache();
+sessionStorage.removeItem('token_expiry');,
     });
   };
   
