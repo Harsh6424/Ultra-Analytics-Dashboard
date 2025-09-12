@@ -109,22 +109,26 @@ const App: React.FC = () => {
     setIsPropertiesLoading(true);
     setPropertiesError(null);
     
-    // Optional debug logging - uncomment if you need to debug
-    // console.log('Token received:', token.substring(0, 20) + '...');
-    
     try {
-        // Optional debug logging for each API call
-        // console.log('Fetching GA4 properties...');
-        const ga4Props = await fetchGa4Properties(token);
-        // console.log('GA4 Properties:', ga4Props);
+        // Fetch GA4 and GSC properties (these are critical)
+        const [ga4Props, gscProps] = await Promise.all([
+            fetchGa4Properties(token),
+            fetchGscSites(token),
+        ]);
         
-        // console.log('Fetching GSC sites...');
-        const gscProps = await fetchGscSites(token);
-        // console.log('GSC Sites:', gscProps);
-        
-        // console.log('Fetching user info...');
-        const userInfo = await fetchUserInfo(token);
-        // console.log('User Info:', userInfo);
+        // Try to fetch user info separately - don't fail if it doesn't work
+        let userInfo: UserInfo;
+        try {
+            userInfo = await fetchUserInfo(token);
+            console.log('User info fetched successfully:', userInfo.email);
+        } catch (err) {
+            console.warn('Could not fetch user info, using fallback:', err);
+            userInfo = {
+                email: 'user@analytics.app',
+                name: 'Analytics User',
+                picture: 'https://ui-avatars.com/api/?name=Analytics+User&background=4285F4&color=fff'
+            };
+        }
         
         setUserInfo(userInfo);
         setGa4Properties(ga4Props);
@@ -139,49 +143,39 @@ const App: React.FC = () => {
         }
 
     } catch(err: any) {
-        console.error("Failed to load user properties:", err);
-        // Optional detailed error logging
-        // console.error("Error response:", err.response);
-        
+        console.error("Failed to load properties:", err);
         const detailedError = `
-            <strong class="text-base text-brand-danger">Authentication Error: Could not load user or property data.</strong>
-            <p class="mt-2">I know this is incredibly frustrating. This error almost always means a specific API is not enabled in your Google Cloud project, even if other parts of the app seem to work. Please follow these steps exactly:</p>
+            <strong class="text-base text-brand-danger">Authentication Error: Could not load property data.</strong>
+            <p class="mt-2">This error means the GA4 Admin API or Search Console API is not properly configured. Please follow these steps:</p>
 
             <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
-                <strong class="text-base text-white">Step 1: Find Your Correct Google Cloud Project ID</strong>
-                <p class="mt-1 mb-2 text-sm text-slate-400">The OAuth Client ID you're using is tied to ONE specific project. All APIs must be enabled there.</p>
+                <strong class="text-base text-white">Step 1: Verify Your Google Cloud Project</strong>
+                <p class="mt-1 mb-2 text-sm text-slate-400">Make sure you're in the correct project where your OAuth Client ID was created.</p>
                 <ol class="list-decimal list-inside space-y-1 text-sm">
-                    <li>Go to your <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline">Credentials page</a>.</li>
-                    <li>Find the "OAuth 2.0 Client ID" you are using for this app.</li>
-                    <li>Look at the top of the Google Cloud console. Does the Project Name and ID shown there match the project you expect? If you're not sure, click the project name at the top to see a list of all your projects. Make sure you select the right one before proceeding. <strong class="text-amber-400">This is the most common point of failure.</strong></li>
+                    <li>Go to your <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline">Credentials page</a></li>
+                    <li>Find your OAuth 2.0 Client ID</li>
+                    <li>Verify the project name at the top matches your intended project</li>
                 </ol>
             </div>
 
             <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
-                <strong class="text-base text-white">Step 2: Verify APIs are Enabled (In the Correct Project)</strong>
-                <p class="mt-1 mb-2 text-sm text-slate-400">Once you are certain you are in the correct project, click these links to enable the required APIs. It is critical that <strong class="text-amber-400">ALL FOUR</strong> of these are enabled. If they are already enabled, the link will show you their status.</p>
-                <a href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">1. Enable Google Analytics Admin API (for listing properties)</a>
-                <br />
-                <a href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">2. Enable Google Search Console API (for listing sites)</a>
-                <br />
-                <a href="https://console.cloud.google.com/apis/library/people.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">3. Enable Google People API (for user info)</a>
-                <br />
-                <a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">4. Enable Google Analytics Data API (for fetching reports)</a>
+                <strong class="text-base text-white">Step 2: Enable Required APIs</strong>
+                <p class="mt-1 mb-2 text-sm text-slate-400">All of these APIs must be enabled in your project:</p>
+                <a href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">1. Google Analytics Admin API</a><br />
+                <a href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">2. Google Search Console API</a><br />
+                <a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">3. Google Analytics Data API</a>
             </div>
 
             <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
-                <strong class="text-base text-white">Step 3: The "Reset Button" - Force a New Permission Grant</strong>
-                <p class="mt-1 mb-2 text-sm text-slate-400">
-                    Sometimes your browser holds on to an old, incorrect permission grant. Revoking the app's access forces it to ask for the correct permissions again from scratch.
-                </p>
-                <ol class="list-decimal list-inside space-y-1 text-sm">
-                  <li>Click this link to go to your Google Account permissions page: <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold">Google Account Permissions</a></li>
-                  <li>Find this application in the list (it may be called "GA4 & GSC SEO Analytics Dashboard" or the name you gave it).</li>
-                  <li>Click on it, and then click <strong class="text-amber-400">"Remove Access"</strong>.</li>
-                </ol>
+                <strong class="text-base text-white">Step 3: Check Permissions</strong>
+                <p class="mt-1 mb-2 text-sm text-slate-400">Ensure your Google account has:</p>
+                <ul class="list-disc list-inside space-y-1 text-sm">
+                    <li>At least "Viewer" access to the GA4 property</li>
+                    <li>Access to at least one Search Console property</li>
+                </ul>
             </div>
             
-            <p class="text-sm font-semibold text-slate-300 mt-4">After completing all steps, please "Sign Out" from the top-right of this app, and then sign back in. This will trigger a fresh authentication flow.</p>
+            <p class="text-sm font-semibold text-slate-300 mt-4">After completing these steps, please sign out and sign back in.</p>
         `;
         setPropertiesError(detailedError);
     } finally {
@@ -246,7 +240,7 @@ const App: React.FC = () => {
             <div className="text-center py-16 bg-slate-800 rounded-lg" dangerouslySetInnerHTML={{ __html: error }} />
         ) : data ? (
           <Dashboard data={data} hiddenInsights={hiddenInsights} siteUrl={filters.gscSite} dateRangeLabel={filters.dateRange}/>
-        ) : !propertiesError ? ( // Only show this if there isn't a more important property loading error
+        ) : !propertiesError ? (
           <div className="text-center py-16 text-slate-500">
             <p>Please select your GA4 and GSC properties and click Refresh to load data.</p>
           </div>
