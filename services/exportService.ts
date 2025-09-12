@@ -66,15 +66,13 @@ export const exportToPdf = (data: AppData, hiddenInsights: string, siteUrl: stri
       addSection('Author Insights', authorHead, authorBody);
     }
 
-    // Hidden Insights
-    doc.addPage();
-    doc.setFontSize(18);
-    doc.text('Hidden Insights', 14, 20);
-    // FIX: Used the 'hiddenInsights' parameter instead of data.hiddenInsights, which does not exist on AppData type.
-    const insights = (window as any).jspdf.splitTextToSize(hiddenInsights.replace(/\*/g, ''), 180);
-    doc.setFontSize(12);
-    doc.text(insights, 14, 30);
-
+// Hidden Insights
+doc.addPage();
+doc.setFontSize(18);
+doc.text('Hidden Insights', 14, 20);
+const insights = doc.splitTextToSize(hiddenInsights.replace(/\*/g, ''), 180); // <-- Fixed
+doc.setFontSize(12);
+doc.text(insights, 14, 30);
 
     // Remove the first blank page created by addSection
     doc.deletePage(1);
