@@ -5,7 +5,8 @@ import { FilterBar } from './components/FilterBar';
 import { Dashboard } from './components/Dashboard';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { Auth } from './components/Auth';
-import { fetchAnalyticsData, fetchGa4Properties, fetchGscSites, fetchUserInfo } from './services/googleApiService';
+// REMOVED fetchUserInfo from imports - only import what we need
+import { fetchAnalyticsData, fetchGa4Properties, fetchGscSites } from './services/googleApiService';
 import { generateHiddenInsights } from './services/geminiService';
 import type { AppData, FilterState, Ga4Property, UserInfo } from './types';
 
@@ -109,16 +110,17 @@ const App: React.FC = () => {
     setIsPropertiesLoading(true);
     setPropertiesError(null);
     
-    console.log('=== Starting API calls with token:', token.substring(0, 30) + '...');
+    console.log('=== Starting property loading (NO userinfo API)...');
     
     try {
-        // SKIP USER INFO COMPLETELY - Just set a default
-        setUserInfo({
+        // IMMEDIATELY set default user - NO API CALL
+        const defaultUser: UserInfo = {
             email: 'user@analytics.app',
             name: 'Analytics User',
             picture: 'https://ui-avatars.com/api/?name=Analytics+User&background=4285F4&color=fff'
-        });
-        console.log('✅ Using default user info (skipping userinfo API)');
+        };
+        setUserInfo(defaultUser);
+        console.log('✅ Set default user (skipped userinfo API completely)');
         
         // Now fetch GA4 properties
         console.log('Fetching GA4 properties...');
@@ -143,46 +145,29 @@ const App: React.FC = () => {
            console.log('Auto-selected GA4 property:', ga4Props[0].property);
         }
 
-        // If we got here, everything worked!
         console.log('✅ All properties loaded successfully!');
 
     } catch(err: any) {
         console.error("=== ERROR Loading Properties:", err);
-        console.error("Error type:", err.name);
-        console.error("Error message:", err.message);
+        console.error("Error details:", err.message);
         
         const detailedError = `
-            <strong class="text-base text-brand-danger">Authentication Error: Could not load property data.</strong>
+            <strong class="text-base text-brand-danger">Could not load GA4/GSC properties.</strong>
             <p class="mt-2">Error: ${err.message}</p>
             
             <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
-                <strong class="text-base text-white">Step 1: Verify Your Google Cloud Project</strong>
-                <p class="mt-1 mb-2 text-sm text-slate-400">Make sure you're in the correct project where your OAuth Client ID was created.</p>
-                <ol class="list-decimal list-inside space-y-1 text-sm">
-                    <li>Go to your <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline">Credentials page</a></li>
-                    <li>Find your OAuth 2.0 Client ID</li>
-                    <li>Verify the project name at the top matches your intended project</li>
+                <strong class="text-base text-white">Quick Checklist:</strong>
+                <ol class="list-decimal list-inside space-y-2 text-sm">
+                    <li>Do you have at least one GA4 property with "Viewer" access?</li>
+                    <li>Do you have at least one Search Console property verified?</li>
+                    <li>Are these APIs enabled in your Google Cloud Project?<br/>
+                        <a href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" target="_blank" class="text-sky-400 hover:underline">• Google Analytics Admin API</a><br/>
+                        <a href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" target="_blank" class="text-sky-400 hover:underline">• Search Console API</a><br/>
+                        <a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" class="text-sky-400 hover:underline">• Analytics Data API</a>
+                    </li>
+                    <li>Is billing enabled on your Google Cloud project?</li>
                 </ol>
             </div>
-
-            <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
-                <strong class="text-base text-white">Step 2: Enable Required APIs</strong>
-                <p class="mt-1 mb-2 text-sm text-slate-400">All of these APIs must be enabled in your project:</p>
-                <a href="https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">1. Google Analytics Admin API</a><br />
-                <a href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">2. Google Search Console API</a><br />
-                <a href="https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:underline font-semibold text-sm">3. Google Analytics Data API</a>
-            </div>
-
-            <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
-                <strong class="text-base text-white">Step 3: Check Permissions</strong>
-                <p class="mt-1 mb-2 text-sm text-slate-400">Ensure your Google account has:</p>
-                <ul class="list-disc list-inside space-y-1 text-sm">
-                    <li>At least "Viewer" access to the GA4 property</li>
-                    <li>Access to at least one Search Console property</li>
-                </ul>
-            </div>
-            
-            <p class="text-sm font-semibold text-slate-300 mt-4">After completing these steps, please sign out and sign back in.</p>
         `;
         setPropertiesError(detailedError);
     } finally {
