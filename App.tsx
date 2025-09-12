@@ -31,40 +31,6 @@ const App: React.FC = () => {
     gscSite: '',
   });
 
-  const handleAuthSuccess = useCallback(async (token: string) => {
-    setAccessToken(token);
-    setIsPropertiesLoading(true);
-    setPropertiesError(null);
-    
-    // Add debug logging
-    console.log('Token received:', token.substring(0, 20) + '...');
-    
-    try {
-        // Test each API individually to see which one fails
-        console.log('Fetching GA4 properties...');
-        const ga4Props = await fetchGa4Properties(token);
-        console.log('GA4 Properties:', ga4Props);
-        
-        console.log('Fetching GSC sites...');
-        const gscProps = await fetchGscSites(token);
-        console.log('GSC Sites:', gscProps);
-        
-        console.log('Fetching user info...');
-        const userInfo = await fetchUserInfo(token);
-        console.log('User Info:', userInfo);
-        
-        setUserInfo(userInfo);
-        setGa4Properties(ga4Props);
-        setGscSites(gscProps);
-        
-        // ... rest of your code
-    } catch(err: any) {
-        console.error("Detailed error:", err);
-        console.error("Error response:", err.response);
-        // ... rest of error handling
-    }
-}, []);
-
   const fetchDataAndInsights = useCallback(async (token: string) => {
     setIsLoading(true);
     setHiddenInsights('');
@@ -142,12 +108,24 @@ const App: React.FC = () => {
     setAccessToken(token);
     setIsPropertiesLoading(true);
     setPropertiesError(null);
+    
+    // Optional debug logging - uncomment if you need to debug
+    // console.log('Token received:', token.substring(0, 20) + '...');
+    
     try {
-        const [ga4Props, gscProps, userInfo] = await Promise.all([
-            fetchGa4Properties(token),
-            fetchGscSites(token),
-            fetchUserInfo(token),
-        ]);
+        // Optional debug logging for each API call
+        // console.log('Fetching GA4 properties...');
+        const ga4Props = await fetchGa4Properties(token);
+        // console.log('GA4 Properties:', ga4Props);
+        
+        // console.log('Fetching GSC sites...');
+        const gscProps = await fetchGscSites(token);
+        // console.log('GSC Sites:', gscProps);
+        
+        // console.log('Fetching user info...');
+        const userInfo = await fetchUserInfo(token);
+        // console.log('User Info:', userInfo);
+        
         setUserInfo(userInfo);
         setGa4Properties(ga4Props);
         setGscSites(gscProps);
@@ -162,6 +140,9 @@ const App: React.FC = () => {
 
     } catch(err: any) {
         console.error("Failed to load user properties:", err);
+        // Optional detailed error logging
+        // console.error("Error response:", err.response);
+        
         const detailedError = `
             <strong class="text-base text-brand-danger">Authentication Error: Could not load user or property data.</strong>
             <p class="mt-2">I know this is incredibly frustrating. This error almost always means a specific API is not enabled in your Google Cloud project, even if other parts of the app seem to work. Please follow these steps exactly:</p>
@@ -209,25 +190,25 @@ const App: React.FC = () => {
   }, []);
 
   const handleSignOut = () => {
-  setAccessToken(null);
-  setUserInfo(null);
-  setData(null);
-  setError(null);
-  setPropertiesError(null);
-  setGa4Properties([]);
-  setGscSites([]);
-  setHiddenInsights('');
-  setFilters({
-    dateRange: 'last-28d',
-    compare: true,
-    topN: 10,
-    authorAnalysis: true,
-    ga4Property: '',
-    gscSite: '',
-  });
-  clearDataCache();
-  sessionStorage.removeItem('token_expiry'); // <-- Fixed: removed comma
-};
+    setAccessToken(null);
+    setUserInfo(null);
+    setData(null);
+    setError(null);
+    setPropertiesError(null);
+    setGa4Properties([]);
+    setGscSites([]);
+    setHiddenInsights('');
+    setFilters({
+      dateRange: 'last-28d',
+      compare: true,
+      topN: 10,
+      authorAnalysis: true,
+      ga4Property: '',
+      gscSite: '',
+    });
+    clearDataCache();
+    sessionStorage.removeItem('token_expiry');
+  };
   
   const handleFiltersChange = (newFilters: Partial<FilterState>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
