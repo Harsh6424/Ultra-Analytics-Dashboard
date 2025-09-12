@@ -109,45 +109,52 @@ const App: React.FC = () => {
     setIsPropertiesLoading(true);
     setPropertiesError(null);
     
+    console.log('=== Starting API calls with token:', token.substring(0, 30) + '...');
+    
     try {
-        // Fetch GA4 and GSC properties (these are critical)
-        const [ga4Props, gscProps] = await Promise.all([
-            fetchGa4Properties(token),
-            fetchGscSites(token),
-        ]);
+        // SKIP USER INFO COMPLETELY - Just set a default
+        setUserInfo({
+            email: 'user@analytics.app',
+            name: 'Analytics User',
+            picture: 'https://ui-avatars.com/api/?name=Analytics+User&background=4285F4&color=fff'
+        });
+        console.log('✅ Using default user info (skipping userinfo API)');
         
-        // Try to fetch user info separately - don't fail if it doesn't work
-        let userInfo: UserInfo;
-        try {
-            userInfo = await fetchUserInfo(token);
-            console.log('User info fetched successfully:', userInfo.email);
-        } catch (err) {
-            console.warn('Could not fetch user info, using fallback:', err);
-            userInfo = {
-                email: 'user@analytics.app',
-                name: 'Analytics User',
-                picture: 'https://ui-avatars.com/api/?name=Analytics+User&background=4285F4&color=fff'
-            };
-        }
+        // Now fetch GA4 properties
+        console.log('Fetching GA4 properties...');
+        const ga4Props = await fetchGa4Properties(token);
+        console.log('✅ GA4 Properties loaded:', ga4Props.length, 'properties found');
         
-        setUserInfo(userInfo);
+        // Fetch GSC sites
+        console.log('Fetching GSC sites...');
+        const gscProps = await fetchGscSites(token);
+        console.log('✅ GSC Sites loaded:', gscProps.length, 'sites found');
+        
         setGa4Properties(ga4Props);
         setGscSites(gscProps);
         
         // Pre-select the first available property if available
         if (gscProps.length > 0) {
            setFilters(prev => ({...prev, gscSite: gscProps[0]}));
+           console.log('Auto-selected GSC site:', gscProps[0]);
         }
         if (ga4Props.length > 0) {
            setFilters(prev => ({...prev, ga4Property: ga4Props[0].property.replace('properties/','')}));
+           console.log('Auto-selected GA4 property:', ga4Props[0].property);
         }
 
+        // If we got here, everything worked!
+        console.log('✅ All properties loaded successfully!');
+
     } catch(err: any) {
-        console.error("Failed to load properties:", err);
+        console.error("=== ERROR Loading Properties:", err);
+        console.error("Error type:", err.name);
+        console.error("Error message:", err.message);
+        
         const detailedError = `
             <strong class="text-base text-brand-danger">Authentication Error: Could not load property data.</strong>
-            <p class="mt-2">This error means the GA4 Admin API or Search Console API is not properly configured. Please follow these steps:</p>
-
+            <p class="mt-2">Error: ${err.message}</p>
+            
             <div class="mt-4 p-4 border border-slate-600 rounded-lg text-left">
                 <strong class="text-base text-white">Step 1: Verify Your Google Cloud Project</strong>
                 <p class="mt-1 mb-2 text-sm text-slate-400">Make sure you're in the correct project where your OAuth Client ID was created.</p>
