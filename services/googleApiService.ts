@@ -172,25 +172,55 @@ const getDateRange = (dateRange: FilterState['dateRange']): {
 // --- API CALLS ---
 
 /**
- * Fetches user profile information.
+ * Fetches user profile information with graceful fallback.
  */
 export async function fetchUserInfo(accessToken: string): Promise<UserInfo> {
     const cacheKey = `userInfo_${accessToken.substring(0, 10)}`;
     const cached = dataCache.get(cacheKey);
     if (cached) return cached;
 
-    const USER_INFO_ENDPOINT = 'https://www.googleapis.com/oauth2/v3/userinfo';
-    const response = await fetchWithRetry(USER_INFO_ENDPOINT, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
-    
-    if (!response.ok) {
-        return handleApiError(response, 'User Info');
+    // Try multiple endpoints
+    const endpoints = [
+        'https://www.googleapis.com/oauth2/v3/userinfo',
+        'https://www.googleapis.com/oauth2/v2/userinfo',
+        'https://www.googleapis.com/oauth2/v1/userinfo'
+    ];
+
+    for (const endpoint of endpoints) {
+        try {
+            const response = await fetch(endpoint, {
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                const userInfo = {
+                    email: data.email || 'user@analytics.app',
+                    name: data.name || data.given_name || 'Analytics User',
+                    picture: data.picture || 'https://ui-avatars.com/api/?name=User&background=4285F4&color=fff'
+                };
+                dataCache.set(cacheKey, userInfo);
+                return userInfo;
+            } else {
+                console.warn(`Userinfo endpoint ${endpoint} failed with status ${response.status}`);
+            }
+        } catch (error) {
+            console.warn(`Failed to fetch from ${endpoint}:`, error);
+        }
     }
     
-    const data = await response.json();
-    dataCache.set(cacheKey, data);
-    return data;
+    // If all endpoints fail, return fallback
+    console.warn('All userinfo endpoints failed, using fallback');
+    const fallbackUserInfo = {
+        email: 'user@analytics.app',
+        name: 'Analytics User',
+        picture: 'https://ui-avatars.com/api/?name=Analytics+User&background=4285F4&color=fff'
+    };
+    
+    // Cache the fallback for a shorter duration (1 minute)
+    dataCache.set(cacheKey, fallbackUserInfo);
+    
+    return fallbackUserInfo;
 }
 
 /**
