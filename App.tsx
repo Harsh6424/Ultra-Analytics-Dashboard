@@ -175,25 +175,25 @@ const App: React.FC = () => {
   }, []);
 
   const handleSignOut = () => {
-    setAccessToken(null);
-    setUserInfo(null);
-    setData(null);
-    setError(null);
-    setPropertiesError(null);
-    setGa4Properties([]);
-    setGscSites([]);
-    setHiddenInsights('');
-    setFilters({
-        dateRange: 'last-28d',
-        compare: true,
-        topN: 10,
-        authorAnalysis: true,
-        ga4Property: '',
-        gscSite: '',
-      clearDataCache();
-sessionStorage.removeItem('token_expiry');,
-    });
-  };
+  setAccessToken(null);
+  setUserInfo(null);
+  setData(null);
+  setError(null);
+  setPropertiesError(null);
+  setGa4Properties([]);
+  setGscSites([]);
+  setHiddenInsights('');
+  setFilters({
+    dateRange: 'last-28d',
+    compare: true,
+    topN: 10,
+    authorAnalysis: true,
+    ga4Property: '',
+    gscSite: '',
+  });
+  clearDataCache();
+  sessionStorage.removeItem('token_expiry'); // <-- Fixed: removed comma
+};
   
   const handleFiltersChange = (newFilters: Partial<FilterState>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
