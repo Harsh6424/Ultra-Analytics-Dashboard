@@ -30,9 +30,11 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
     try {
       const client = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+        // Simplified scopes - just what we need for GA4 and GSC
+        scope: 'https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly',
         callback: (tokenResponse: any) => {
           if (tokenResponse && tokenResponse.access_token) {
+            console.log('Token received, scopes:', tokenResponse.scope);
             // Store token expiry time for better session management
             const expiryTime = new Date().getTime() + (tokenResponse.expires_in * 1000);
             sessionStorage.setItem('token_expiry', expiryTime.toString());
@@ -105,7 +107,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                         <li>Under "Authorized JavaScript origins", click "ADD URI".</li>
                         <li>Enter the exact URL from your browser's address bar.</li>
                     </ol>
-                    <p className="mt-3 text-xs text-slate-400">This must be an *exact* match, including `http` vs `https` and any port number (e.g., `http://localhost:8080`).</p>
+                    <p className="mt-3 text-xs text-slate-400">This must be an *exact* match, including `http` vs `https` and any port number (e.g., `http://localhost:5173`).</p>
                 </div>
               );
           case 'token':
