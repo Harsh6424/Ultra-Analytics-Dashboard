@@ -2,14 +2,10 @@ import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 
 export default defineConfig(({ mode }) => {
-    // Load env file based on `mode` in the current working directory.
-    // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
     const env = loadEnv(mode, process.cwd(), '');
     
     return {
-      // Only expose VITE_ prefixed variables to the client for security
       define: {
-        // Note: We don't need to define process.env here since we're using import.meta.env
         // Vite automatically handles VITE_ prefixed variables
       },
       resolve: {
