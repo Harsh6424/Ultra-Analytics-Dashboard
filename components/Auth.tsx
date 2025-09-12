@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 
 // Add this line to inform TypeScript about the global 'google' object from the GSI script
@@ -8,11 +7,11 @@ interface AuthProps {
   onAuthSuccess: (token: string) => void;
 }
 
-// IMPORTANT: Replace with your actual Google Cloud Client ID
-const GOOGLE_CLIENT_ID = '353746870042-ptuffqad5p8nuh8p7n4jcfuvfsqeep1a.apps.googleusercontent.com';
+// Use environment variable for security
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 type AuthError = {
-    type: 'popup_blocker' | 'config' | 'token' | 'init' | 'popup_closed';
+    type: 'popup_blocker' | 'config' | 'token' | 'init' | 'popup_closed' | 'missing_config';
 };
 
 export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
@@ -20,6 +19,12 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
   const [error, setError] = useState<AuthError | null>(null);
 
   const handleLogin = () => {
+    // Check if client ID is configured
+    if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === 'your_google_client_id_here') {
+      setError({ type: 'missing_config' });
+      return;
+    }
+
     setIsAuthenticating(true);
     setError(null);
     try {
@@ -28,6 +33,9 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
         scope: 'https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
         callback: (tokenResponse: any) => {
           if (tokenResponse && tokenResponse.access_token) {
+            // Store token expiry time for better session management
+            const expiryTime = new Date().getTime() + (tokenResponse.expires_in * 1000);
+            sessionStorage.setItem('token_expiry', expiryTime.toString());
             onAuthSuccess(tokenResponse.access_token);
           } else {
             console.error('Failed to retrieve access token:', tokenResponse);
@@ -41,7 +49,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                  setError({ type: 'popup_blocker' });
             } else if (error.type === 'popup_closed') {
                 setError({ type: 'popup_closed' });
-            } else { // Handles 'invalid_request', 'redirect_uri', etc.
+            } else {
                  setError({ type: 'config' });
             }
             setIsAuthenticating(false);
@@ -59,6 +67,16 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
       if (!error) return null;
 
       switch (error.type) {
+          case 'missing_config':
+              return (
+                  <div className="p-4 bg-red-900/50 text-red-300 border border-red-700 rounded-md text-sm text-left">
+                      <p className="font-semibold mb-2">Configuration Missing</p>
+                      <p>Google Client ID is not configured. Please add your Google Client ID to the .env.local file:</p>
+                      <code className="block mt-2 p-2 bg-slate-800 rounded">
+                          VITE_GOOGLE_CLIENT_ID=your_client_id_here
+                      </code>
+                  </div>
+              );
           case 'popup_blocker':
               return (
                   <div className="p-4 bg-yellow-900/50 text-yellow-300 border border-yellow-700 rounded-md text-sm text-left">
